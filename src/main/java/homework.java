@@ -25,8 +25,10 @@ public class homework {
         PenteAgent agent = new PenteAgent(moveManager, configuration.getPlayer());
         Move move = agent.getBestMove();
 
+        moveManager.commit(move);
         fileHandler.writeMove(move);
-        fileHandler.updatePlayData(configuration);
+        fileHandler.writeBoard(moveManager.board);
+//        fileHandler.updatePlayData(configuration);
     }
 
     public static class Constants {
@@ -36,6 +38,8 @@ public class homework {
         private static final String PLAYDATA_PATH = "playdata.txt";
 
         private static final String OUTPUT_PATH = "output.txt";
+
+        private static final String BOARD_PATH = "board.txt";
 
         private static final int DIMS = 19;
     }
@@ -96,6 +100,20 @@ public class homework {
         public void writeMove(Move move) throws IOException {
             BufferedWriter writer = new BufferedWriter(new FileWriter(Constants.OUTPUT_PATH, false));
             writer.write(move.getString());
+            writer.close();
+        }
+
+        public void writeBoard(Player[][] board) throws IOException {
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < Constants.DIMS; i++) {
+                String row = Arrays.stream(board[i])
+                        .map(Player::getLabel)
+                        .collect(Collectors.joining(""));
+                row += "\n";
+                builder.append(row);
+            }
+            BufferedWriter writer = new BufferedWriter(new FileWriter(Constants.BOARD_PATH, false));
+            writer.write(builder.toString());
             writer.close();
         }
     }
@@ -208,7 +226,7 @@ public class homework {
 
     public static class PenteAgent {
 
-        private static final int MINIMAX_MAX_DEPTH = 4;
+        private static final int MINIMAX_MAX_DEPTH = 2;
 
         private final MoveManager moveManager;
 
@@ -223,10 +241,7 @@ public class homework {
             Move bestMove = null;
             long bestScore = Integer.MIN_VALUE;
 
-            List<Move> moves = moveManager.getNextMoves(us).stream()
-                    .filter(move -> move.getScore() > 0)
-                    .sorted(Move::compareTo)
-                    .collect(Collectors.toList());
+            List<Move> moves = moveManager.getNextMoves(us);
 
             for (Move move : moves) {
                 moveManager.commit(move);
@@ -343,6 +358,7 @@ public class homework {
         public MoveManager(Configuration configuration) {
             this.board = configuration.getBoard();
             this.us = configuration.getPlayer();
+
             /* Initialise turn numbers and captures */
             if (configuration.getPlayer() == Player.WHITE) {
                 this.ourTurnNumber = configuration.getTurn();
@@ -368,7 +384,13 @@ public class homework {
                     }
                 }
             }
-            return moves;
+
+            /* Sort and clip moves */
+            moves.sort(Move::compareTo);
+            if (currentPlayer == us.opponent()) {
+                Collections.reverse(moves);
+            }
+            return moves.subList(0, 20);
         }
 
         /**
@@ -615,11 +637,11 @@ public class homework {
             for (Direction captureDirection : move.getCaptureDirections()) {
                 nextI = captureDirection.moveI(i, 1);
                 nextJ = captureDirection.moveJ(j, 1);
-                board[nextI][nextJ] = player;
+                board[nextI][nextJ] = Player.NONE;
 
                 nextI = captureDirection.moveI(i, 2);
                 nextJ = captureDirection.moveI(j, 2);
-                board[nextI][nextJ] = player;
+                board[nextI][nextJ] = Player.NONE;
             }
         }
 
@@ -656,24 +678,6 @@ public class homework {
                 nextJ = captureDirection.moveI(j, 2);
                 board[nextI][nextJ] = player.opponent();
             }
-        }
-
-        /**
-         * Evaluates and returns a score (considering the maximising player) for a move. We evaluate the following features:
-         *     1. Number of captures
-         *     2. Number of our pieces
-         *     3. Number of opponent pieces
-         *     4. Number of 4s in a row
-         *     5. Number of 3s in a row
-         *     6. Number of 2s in a row
-         *
-         * NOTE: this method can only be called if the move is not a winning move
-         */
-        public long evaluateState(Player[][] board, Move move, CapturePair capturePair) {
-            Player player = move.getPlayer();
-            int captures = capturePair.getCaptures(player);
-
-            return captures * 10L + countOpenLines(board);
         }
 
         public boolean haveWeWon(Move move) {
