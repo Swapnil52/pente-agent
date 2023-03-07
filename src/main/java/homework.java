@@ -19,7 +19,6 @@ public class homework {
         FileHandler fileHandler = new FileHandler();
 
         Configuration configuration = fileHandler.loadConfiguration();
-        System.out.println(configuration);
 
         MoveManager moveManager = new MoveManager(configuration);
         PenteAgent agent = new PenteAgent(moveManager, configuration.getPlayer());
@@ -28,11 +27,12 @@ public class homework {
         moveManager.commit(move);
         fileHandler.writeMove(move);
         fileHandler.writeBoard(moveManager.board);
-//        fileHandler.updatePlayData(configuration);
+        fileHandler.updatePlayData(configuration);
     }
 
     public static class Constants {
 
+        public static final int MAX_MOVES_SIZE = 10;
         private static final String INPUT_PATH = "input.txt";
 
         private static final String PLAYDATA_PATH = "playdata.txt";
@@ -42,6 +42,8 @@ public class homework {
         private static final String BOARD_PATH = "board.txt";
 
         private static final int DIMS = 19;
+        private static final int WIN_CAPTURES_NEEDED = 5;
+        private static final int WIN_COINS_NEEDED = 5;
     }
 
     public static class FileHandler {
@@ -93,7 +95,7 @@ public class homework {
         public void updatePlayData(Configuration configuration) throws IOException {
             int lastTurn = configuration.getTurn();
             BufferedWriter writer = new BufferedWriter(new FileWriter(Constants.PLAYDATA_PATH, false));
-            writer.write(lastTurn);
+            writer.write(String.valueOf(lastTurn + 1));
             writer.close();
         }
 
@@ -283,9 +285,9 @@ public class homework {
 
             /* Call maxValue on the above moves */
             for (Move move : moves) {
-                move.commit();
+                moveManager.commit(move);
                 beta = Math.min(beta, maxValue(move, depth + 1, alpha, beta));
-                move.revoke();
+                moveManager.rollback(move);
                 if (alpha >= beta) {
                     return beta;
                 }
@@ -329,19 +331,9 @@ public class homework {
             }
             return alpha;
         }
-
-        private CapturePair initCapturePair(Move previousMove, int ourCaptures, int theirCaptures) {
-            int whiteCaptures = previousMove.getPlayer() == Player.WHITE ? ourCaptures : theirCaptures;
-            int blackCaptures = previousMove.getPlayer() == Player.BLACK ? ourCaptures : theirCaptures;
-            return CapturePair.of(whiteCaptures, blackCaptures);
-        }
     }
 
     public static class MoveManager {
-
-        private static final int WIN_CAPTURES_NEEDED = 5;
-
-        private static final int WIN_COINS_NEEDED = 5;
 
         private final Player[][] board;
 
@@ -390,7 +382,7 @@ public class homework {
             if (currentPlayer == us.opponent()) {
                 Collections.reverse(moves);
             }
-            return moves.subList(0, 20);
+            return moves.stream().limit(Constants.MAX_MOVES_SIZE).collect(Collectors.toList());
         }
 
         /**
@@ -404,6 +396,9 @@ public class homework {
             if (outOfBounds(i, j)) {
                 return false;
             }
+            if (board[i][j] != Player.NONE) {
+                return false;
+            }
             if (currentPlayer == Player.WHITE) {
                 if (turn == 1) {
                     return i == 9 && j == 9;
@@ -412,7 +407,7 @@ public class homework {
                     return !(i > 6 && i < 12 && j > 6 && j < 12);
                 }
             }
-            return board[i][j] == Player.NONE;
+            return true;
         }
 
         public Move initMove(Player player, int i, int j) {
@@ -463,7 +458,7 @@ public class homework {
             How close are we to a win by capture? I know the number of captures made by the move. I also if those captures
             were made by us or the opponent. The more captures I make on this move, the closer I get to the goal
             */
-            int capturesNeeded = WIN_CAPTURES_NEEDED - capturesSoFar;
+            int capturesNeeded = Constants.WIN_CAPTURES_NEEDED - capturesSoFar;
             int captureScore = 0;
             if (capturesInThisMove >= capturesNeeded) {
                 captureScore = Integer.MAX_VALUE;
@@ -540,7 +535,7 @@ public class homework {
                 return false;
             }
 
-            int needed = WIN_COINS_NEEDED - K;
+            int needed = Constants.WIN_COINS_NEEDED - K;
             return checkKInARow(Player.NONE, needed, targetI, targetJ, direction);
         }
 
@@ -604,6 +599,18 @@ public class homework {
             move.commit();
         }
 
+        private void printBoard() {
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < Constants.DIMS; i++) {
+                String row = Arrays.stream(board[i])
+                        .map(Player::getLabel)
+                        .collect(Collectors.joining(""));
+                row += "\n";
+                builder.append(row);
+            }
+            System.out.println(builder);
+        }
+
         private void undoTryMove(Move move) {
             removePiece(move);
             placeCapturedPieces(move);
@@ -628,7 +635,6 @@ public class homework {
             }
 
             /* Apply captures */
-            Player player = move.getPlayer();
             int i = move.getI();
             int j = move.getJ();
 
@@ -640,7 +646,7 @@ public class homework {
                 board[nextI][nextJ] = Player.NONE;
 
                 nextI = captureDirection.moveI(i, 2);
-                nextJ = captureDirection.moveI(j, 2);
+                nextJ = captureDirection.moveJ(j, 2);
                 board[nextI][nextJ] = Player.NONE;
             }
         }
@@ -675,7 +681,7 @@ public class homework {
                 board[nextI][nextJ] = player.opponent();
 
                 nextI = captureDirection.moveI(i, 2);
-                nextJ = captureDirection.moveI(j, 2);
+                nextJ = captureDirection.moveJ(j, 2);
                 board[nextI][nextJ] = player.opponent();
             }
         }
@@ -700,9 +706,9 @@ public class homework {
          *     2. Made a tessera (4-in-a-row not surrounded by the other player's pieces) NOTE: CHECK THIS AGAIN
          *     3. Made a 5-in-a-row
          */
-        public boolean isWinningMove(Move move, int capturesSoFar) {
+        private boolean isWinningMove(Move move, int capturesSoFar) {
             /* Check if the player has made at least 5 captures with this move */
-            if (capturesSoFar >= WIN_CAPTURES_NEEDED) {
+            if (capturesSoFar >= Constants.WIN_CAPTURES_NEEDED) {
                 return true;
             }
 
@@ -728,7 +734,7 @@ public class homework {
                     j = direction.moveJ(j, -1);
                 }
 
-                if (front + back + 1 >= WIN_COINS_NEEDED) {
+                if (front + back + 1 >= Constants.WIN_COINS_NEEDED) {
                     return true;
                 }
             }
@@ -750,35 +756,6 @@ public class homework {
                 }
             }
             return count == Constants.DIMS * Constants.DIMS;
-        }
-
-        /**
-         * Counts the number of open K-in a rows i.e. a contiguous string of player coins such that space is available to
-         * place another coin
-         */
-        private int countOpenLines(Player[][] board) {
-            int count = 0;
-            for (int i = 0; i < Constants.DIMS; i++) {
-                for (int j = 0; j < Constants.DIMS; j++) {
-                    for (Direction direction : Direction.values()) {
-                        if (hasOpenLine(board, i, j, direction)) {
-                            count++;
-                        }
-                    }
-                }
-            }
-            return count;
-        }
-
-        private boolean hasOpenLine(Player[][] board, int i, int j, Direction direction) {
-            int needed = 5;
-            while (needed > 0 && !outOfBounds(i, j) && board[i][j] == Player.NONE) {
-                needed--;
-                i = direction.moveI(i, 1);
-                j = direction.moveJ(j, 1);
-            }
-
-            return needed == 0;
         }
 
         /**
