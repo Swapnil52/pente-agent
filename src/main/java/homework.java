@@ -16,21 +16,12 @@ public class homework {
 
     public static void main(String[] args) throws IOException {
         long start = System.currentTimeMillis();
-
         FileHandler fileHandler = new FileHandler();
-
         Configuration configuration = fileHandler.loadConfiguration();
-        System.out.println(configuration);
-
         MoveManager moveManager = new MoveManager(configuration);
         PenteAgent agent = new PenteAgent(moveManager, configuration.getPlayer());
         Move move = agent.getBestMove();
-
-        moveManager.commit(move);
         fileHandler.writeMove(move);
-        fileHandler.writeBoard(moveManager.board);
-        fileHandler.updatePlayData(configuration);
-
         System.out.printf("Time taken: %fs%n", (System.currentTimeMillis()-start)/1000F);
     }
 
@@ -446,6 +437,10 @@ public class homework {
                 builder.append(row);
             }
             System.out.println(builder);
+        }
+
+        public Player[][] getBoard() {
+            return board;
         }
 
         private int getScore(Player player) {
