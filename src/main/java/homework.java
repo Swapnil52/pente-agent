@@ -31,22 +31,7 @@ public class homework {
         fileHandler.writeBoard(moveManager.board);
         fileHandler.updatePlayData(configuration);
 
-        System.out.printf("Time taken: %ds%n", (System.currentTimeMillis()-start)/1000);
-    }
-
-    public static class Constants {
-
-        private static final String INPUT_PATH = "input.txt";
-
-        private static final String PLAYDATA_PATH = "playdata.txt";
-
-        private static final String OUTPUT_PATH = "output.txt";
-
-        private static final String BOARD_PATH = "board.txt";
-
-        private static final int DIMS = 19;
-        private static final int WIN_CAPTURES_NEEDED = 5;
-        private static final int WIN_COINS_NEEDED = 5;
+        System.out.printf("Time taken: %fs%n", (System.currentTimeMillis()-start)/1000F);
     }
 
     public static class FileHandler {
@@ -81,20 +66,6 @@ public class homework {
             return new Configuration(board, player, timeRemaining, capturesByWhite, capturesByBlack, turn);
         }
 
-        private int loadPlayData() {
-            try {
-                File file = new File(Constants.PLAYDATA_PATH);
-                BufferedReader reader = new BufferedReader(new FileReader(file));
-                String line = reader.readLine();
-                reader.close();
-                return Integer.parseInt(line);
-            }
-            catch (Exception ex) {
-                /* If play-data is not present, this is the first move */
-                return 1;
-            }
-        }
-
         public void updatePlayData(Configuration configuration) throws IOException {
             int lastTurn = configuration.getTurn();
             BufferedWriter writer = new BufferedWriter(new FileWriter(Constants.PLAYDATA_PATH, false));
@@ -120,6 +91,20 @@ public class homework {
             BufferedWriter writer = new BufferedWriter(new FileWriter(Constants.BOARD_PATH, false));
             writer.write(builder.toString());
             writer.close();
+        }
+
+        private int loadPlayData() {
+            try {
+                File file = new File(Constants.PLAYDATA_PATH);
+                BufferedReader reader = new BufferedReader(new FileReader(file));
+                String line = reader.readLine();
+                reader.close();
+                return Integer.parseInt(line);
+            }
+            catch (Exception ex) {
+                /* If play-data is not present, this is the first move */
+                return 1;
+            }
         }
     }
 
@@ -173,7 +158,6 @@ public class homework {
         @Override
         public String toString() {
             StringBuilder builder = new StringBuilder();
-
             builder.append(String.format("%s\n", this.player));
             builder.append(String.format("%f\n", this.timeRemaining));
             builder.append(String.format("%d,%d\n", this.capturesByWhite, this.capturesByBlack));
@@ -183,55 +167,11 @@ public class homework {
                         .collect(Collectors.joining());
                 builder.append(String.format("%s\n", row));
             }
-
             return builder.toString();
         }
     }
 
-    public enum Player {
-
-        WHITE("w"),
-        BLACK("b"),
-        NONE(".");
-
-        private final String label;
-
-        private static final Map<String, Player> labelsMap = new HashMap<>();
-
-        static {
-            Arrays.stream(values()).forEach(player -> labelsMap.put(player.getLabel(), player));
-        }
-
-        Player(String label) {
-            this.label = label;
-        }
-
-        public static Player fromLabel(String label) {
-            Player player = labelsMap.get(label);
-            if (Objects.isNull(player)) {
-                throw new IllegalArgumentException(String.format("Player does not exist for the label: %s", label));
-            }
-            return player;
-        }
-
-        public Player opponent() {
-            if (this == NONE) {
-                throw new IllegalStateException("Other player does not exist for an empty intersection");
-            }
-            if (this == WHITE) {
-                return BLACK;
-            }
-            return WHITE;
-        }
-
-        public String getLabel() {
-            return label;
-        }
-    }
-
     public static class PenteAgent {
-
-        private static final int MINIMAX_MAX_DEPTH = 3;
 
         private final MoveManager moveManager;
 
@@ -274,7 +214,7 @@ public class homework {
                 return Result.TIE.getScore();
             }
             /* Else if the recursion depth has been reached, return its eval */
-            else if (depth > MINIMAX_MAX_DEPTH) {
+            else if (depth > Constants.MINIMAX_MAX_DEPTH) {
                 return moveManager.evaluate();
             }
 
@@ -310,7 +250,7 @@ public class homework {
                 return Result.TIE.getScore();
             }
             /* Else if the recursion depth has been reached, return its eval */
-            else if (depth > MINIMAX_MAX_DEPTH) {
+            else if (depth > Constants.MINIMAX_MAX_DEPTH) {
                 return moveManager.evaluate();
             }
 
@@ -431,31 +371,6 @@ public class homework {
             return moves;
         }
 
-        /**
-         * 1. The move must be within the bounds of the board
-         * 2. If it's the white player's 1st turn, it must be on the centre intersection
-         * 3. If it's the white player's 2nd turn, the coin must be placed on or outside the centre 3x3 square
-         *    i.e., return false if !(i > 6 and i < 12 and j > 6 and j < 12)
-         * 4. Else, players are free to place their coin on any unoccupied intersection
-         */
-        private boolean allowed(Player currentPlayer, int turn, int i, int j) {
-            if (outOfBounds(i, j)) {
-                return false;
-            }
-            if (board[i][j] != Player.NONE) {
-                return false;
-            }
-            if (currentPlayer == Player.WHITE) {
-                if (turn == 1) {
-                    return i == 9 && j == 9;
-                }
-                else if (turn == 2) {
-                    return !(i > 6 && i < 12 && j > 6 && j < 12);
-                }
-            }
-            return true;
-        }
-
         public Move initMove(Player player, int i, int j) {
             /* Cannot apply a move on an occupied intersection */
             if (board[i][j] != Player.NONE) {
@@ -481,6 +396,56 @@ public class homework {
                 return Integer.MIN_VALUE;
             }
             return getScore(us) - getScore(us.opponent());
+        }
+
+        public boolean haveWeWon(Move move) {
+            if (move.getPlayer() != us) {
+                throw new IllegalArgumentException("Our winning move check cannot be made on the opponent's move");
+            }
+            return isWinningMove(move, ourCaptures);
+        }
+
+        public boolean haveTheyWon(Move move) {
+            if (move.getPlayer() == us) {
+                throw new IllegalArgumentException("The opponent's winning move check cannot be made on our move");
+            }
+            return isWinningMove(move, theirCaptures);
+        }
+
+        public void commit(Move move) {
+            tryMove(move);
+            if (move.getPlayer() == us) {
+                ourCaptures += move.getCaptureDirections().size();
+                ourTurnNumber += 1;
+            }
+            else {
+                theirCaptures += move.getCaptureDirections().size();
+                theirTurnNumber += 1;
+            }
+        }
+
+        public void rollback(Move move) {
+            undoTryMove(move);
+            if (move.getPlayer() == us) {
+                ourCaptures -= move.getCaptureDirections().size();
+                ourTurnNumber -= 1;
+            }
+            else {
+                theirCaptures -= move.getCaptureDirections().size();
+                theirTurnNumber -= 1;
+            }
+        }
+
+        public void printBoard() {
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < Constants.DIMS; i++) {
+                String row = Arrays.stream(board[i])
+                        .map(Player::getLabel)
+                        .collect(Collectors.joining(""));
+                row += "\n";
+                builder.append(row);
+            }
+            System.out.println(builder);
         }
 
         private int getScore(Player player) {
@@ -587,46 +552,10 @@ public class homework {
             return count;
         }
 
-        public void commit(Move move) {
-            tryMove(move);
-            if (move.getPlayer() == us) {
-                ourCaptures += move.getCaptureDirections().size();
-                ourTurnNumber += 1;
-            }
-            else {
-                theirCaptures += move.getCaptureDirections().size();
-                theirTurnNumber += 1;
-            }
-        }
-
-        public void rollback(Move move) {
-            undoTryMove(move);
-            if (move.getPlayer() == us) {
-                ourCaptures -= move.getCaptureDirections().size();
-                ourTurnNumber -= 1;
-            }
-            else {
-                theirCaptures -= move.getCaptureDirections().size();
-                theirTurnNumber -= 1;
-            }
-        }
-
         private void tryMove(Move move) {
             placePiece(move);
             removeCapturedPieces(move);
             move.commit();
-        }
-
-        private void printBoard() {
-            StringBuilder builder = new StringBuilder();
-            for (int i = 0; i < Constants.DIMS; i++) {
-                String row = Arrays.stream(board[i])
-                        .map(Player::getLabel)
-                        .collect(Collectors.joining(""));
-                row += "\n";
-                builder.append(row);
-            }
-            System.out.println(builder);
         }
 
         private void undoTryMove(Move move) {
@@ -704,25 +633,10 @@ public class homework {
             }
         }
 
-        public boolean haveWeWon(Move move) {
-            if (move.getPlayer() != us) {
-                throw new IllegalArgumentException("Our winning move check cannot be made on the opponent's move");
-            }
-            return isWinningMove(move, ourCaptures);
-        }
-
-        public boolean haveTheyWon(Move move) {
-            if (move.getPlayer() == us) {
-                throw new IllegalArgumentException("The opponent's winning move check cannot be made on our move");
-            }
-            return isWinningMove(move, theirCaptures);
-        }
-
         /**
          * A player has one if they have
          *     1. Made the required number of captures
-         *     2. Made a tessera (4-in-a-row not surrounded by the other player's pieces) NOTE: CHECK THIS AGAIN
-         *     3. Made a 5-in-a-row
+         *     2. Made a 5-in-a-row
          */
         private boolean isWinningMove(Move move, int capturesSoFar) {
             /* Check if the player has made at least 5 captures with this move */
@@ -859,8 +773,6 @@ public class homework {
 
     public static class Move {
 
-        private static final String[] columns = {"A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T"};
-
         private final Player player;
 
         private final int i;
@@ -914,7 +826,7 @@ public class homework {
         }
 
         public String getString() {
-            return (Constants.DIMS - i) + columns[j];
+            return (Constants.DIMS - i) + Constants.columns[j];
         }
     }
 
@@ -935,30 +847,65 @@ public class homework {
         }
     }
 
-    public static class CapturePair {
+    public static class Constants {
 
-        private final int white;
+        public static final String INPUT_PATH = "input.txt";
 
-        private final int black;
+        public static final String PLAYDATA_PATH = "playdata.txt";
 
-        private CapturePair(int first, int second) {
-            this.white = first;
-            this.black = second;
+        public static final String OUTPUT_PATH = "output.txt";
+
+        public static final String BOARD_PATH = "board.txt";
+
+        public static final int DIMS = 19;
+
+        public static final int WIN_CAPTURES_NEEDED = 5;
+
+        public static final int WIN_COINS_NEEDED = 5;
+
+        public static final int MINIMAX_MAX_DEPTH = 3;
+
+        public static final String[] columns = {"A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T"};
+    }
+
+    public enum Player {
+
+        WHITE("w"),
+        BLACK("b"),
+        NONE(".");
+
+        private final String label;
+
+        private static final Map<String, Player> labelsMap = new HashMap<>();
+
+        static {
+            Arrays.stream(values()).forEach(player -> labelsMap.put(player.getLabel(), player));
         }
 
-        public static CapturePair of(int white, int black) {
-            return new CapturePair(white, black);
+        Player(String label) {
+            this.label = label;
         }
 
-        public int getCaptures(Player player) {
-            switch (player) {
-                case WHITE:
-                    return white;
-                case BLACK:
-                    return black;
-                default:
-                    throw new IllegalArgumentException(String.format("Player %s cannot have any captures", player));
+        public static Player fromLabel(String label) {
+            Player player = labelsMap.get(label);
+            if (Objects.isNull(player)) {
+                throw new IllegalArgumentException(String.format("Player does not exist for the label: %s", label));
             }
+            return player;
+        }
+
+        public Player opponent() {
+            if (this == NONE) {
+                throw new IllegalStateException("Other player does not exist for an empty intersection");
+            }
+            if (this == WHITE) {
+                return BLACK;
+            }
+            return WHITE;
+        }
+
+        public String getLabel() {
+            return label;
         }
     }
 }
