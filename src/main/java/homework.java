@@ -6,7 +6,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,9 +15,12 @@ import java.util.stream.Collectors;
 public class homework {
 
     public static void main(String[] args) throws IOException {
+        long start = System.currentTimeMillis();
+
         FileHandler fileHandler = new FileHandler();
 
         Configuration configuration = fileHandler.loadConfiguration();
+        System.out.println(configuration);
 
         MoveManager moveManager = new MoveManager(configuration);
         PenteAgent agent = new PenteAgent(moveManager, configuration.getPlayer());
@@ -28,11 +30,12 @@ public class homework {
         fileHandler.writeMove(move);
         fileHandler.writeBoard(moveManager.board);
         fileHandler.updatePlayData(configuration);
+
+        System.out.printf("Time taken: %ds%n", (System.currentTimeMillis()-start)/1000);
     }
 
     public static class Constants {
 
-        public static final int MAX_MOVES_SIZE = 10;
         private static final String INPUT_PATH = "input.txt";
 
         private static final String PLAYDATA_PATH = "playdata.txt";
@@ -228,7 +231,7 @@ public class homework {
 
     public static class PenteAgent {
 
-        private static final int MINIMAX_MAX_DEPTH = 2;
+        private static final int MINIMAX_MAX_DEPTH = 3;
 
         private final MoveManager moveManager;
 
@@ -272,7 +275,7 @@ public class homework {
             }
             /* Else if the recursion depth has been reached, return its eval */
             else if (depth > MINIMAX_MAX_DEPTH) {
-                return previousMove.getScore();
+                return moveManager.evaluate();
             }
 
             /*
@@ -280,8 +283,6 @@ public class homework {
             and sort them in the increasing order of eval.
             */
             List<Move> moves = moveManager.getNextMoves(us.opponent());
-            moves.sort(Move::compareTo);
-            Collections.reverse(moves);
 
             /* Call maxValue on the above moves */
             for (Move move : moves) {
@@ -310,7 +311,7 @@ public class homework {
             }
             /* Else if the recursion depth has been reached, return its eval */
             else if (depth > MINIMAX_MAX_DEPTH) {
-                return previousMove.getScore();
+                return moveManager.evaluate();
             }
 
             /*
@@ -318,7 +319,6 @@ public class homework {
             in decreasing order of score.
             */
             List<Move> moves = moveManager.getNextMoves(us);
-            moves.sort(Move::compareTo);
 
             /* Try out the moves one by one */
             for (Move move : moves) {
@@ -367,22 +367,68 @@ public class homework {
         }
 
         public List<Move> getNextMoves(Player currentPlayer) {
+            int turnNumber = currentPlayer == us ? ourTurnNumber : theirTurnNumber;
+            if (currentPlayer == Player.WHITE && (turnNumber == 1 || turnNumber == 2)) {
+                return getConditionalMoves(currentPlayer, turnNumber);
+            }
+            return getNonConditionalMoves(currentPlayer);
+        }
+
+        private List<Move> getNonConditionalMoves(Player currentPlayer) {
             List<Move> moves = new ArrayList<>();
             for (int i = 0; i < Constants.DIMS; i++) {
                 for (int j = 0; j < Constants.DIMS; j++) {
-                    int turnNumber = currentPlayer == us ? ourTurnNumber : theirTurnNumber;
-                    if (allowed(currentPlayer, turnNumber, i, j)) {
+                    if (board[i][j] == Player.NONE && isAdjacentToACoin(i, j)) {
                         moves.add(initMove(currentPlayer, i, j));
                     }
                 }
             }
+            return moves;
+        }
 
-            /* Sort and clip moves */
-            moves.sort(Move::compareTo);
-            if (currentPlayer == us.opponent()) {
-                Collections.reverse(moves);
+        private boolean isAdjacentToACoin(int i, int j) {
+            if (outOfBounds(i, j)) {
+                throw new IllegalArgumentException(String.format("Coordinates (%d,%d) are out of bounds", i, j));
             }
-            return moves.stream().limit(Constants.MAX_MOVES_SIZE).collect(Collectors.toList());
+            for (Direction direction : Direction.values()) {
+                int nextI = direction.moveI(i, 1);
+                int nextJ = direction.moveJ(j, 1);
+                if (!outOfBounds(nextI, nextJ) && board[nextI][nextJ] != Player.NONE) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private List<Move> getConditionalMoves(Player player, int turnNumber) {
+            List<Move> moves = new ArrayList<>();
+            if (player != Player.WHITE) {
+                throw new IllegalArgumentException("Cannot initialise conditional moves for the black player");
+            }
+            if (turnNumber != 1 && turnNumber != 2) {
+                throw new IllegalArgumentException("Conditional moves are reserved for the first and second turn of the white player");
+            }
+            if (turnNumber == 1) {
+                moves.add(initMove(player, 9, 9));
+            }
+            else {
+                moves.addAll(getMovesOnALine(player, 6, 6, 6, Direction.E));
+                moves.addAll(getMovesOnALine(player, 6, 12, 6, Direction.S));
+                moves.addAll(getMovesOnALine(player, 12, 12, 6, Direction.W));
+                moves.addAll(getMovesOnALine(player, 12, 6, 6, Direction.N));
+            }
+            return moves;
+        }
+
+        private List<Move> getMovesOnALine(Player player, int i, int j, int N, Direction direction) {
+            List<Move> moves = new ArrayList<>();
+            while (N > 0 && !outOfBounds(i, j)) {
+                moves.add(initMove(player, i, j));
+                i = direction.moveI(i, 1);
+                j = direction.moveJ(j, 1);
+                N--;
+            }
+            return moves;
         }
 
         /**
@@ -424,67 +470,39 @@ public class homework {
                 }
             }
 
-            Move move = new Move(player, i, j, captureDirections);
-            move.setScore(evaluateMove(move));
-
-            return move;
+            return new Move(player, i, j, captureDirections);
         }
 
-        public long evaluateMove(Move move) {
-            if (move.isApplied()) {
-                throw new IllegalStateException("Cannot evaluate an already applied move");
+        public long evaluate() {
+            if (ourCaptures >= Constants.WIN_CAPTURES_NEEDED) {
+                return Integer.MAX_VALUE;
             }
-
-            tryMove(move);
-
-            int ourCapturesInThisMove = 0;
-            int theirCapturesInThisMove = 0;
-            if (move.getPlayer() == us) {
-                ourCapturesInThisMove = move.getCaptureDirections().size();
+            else if (theirCaptures >= Constants.WIN_CAPTURES_NEEDED) {
+                return Integer.MIN_VALUE;
             }
-            else {
-                theirCapturesInThisMove = move.getCaptureDirections().size();
-            }
-
-            int score = getScore(board, us, ourCapturesInThisMove, ourCaptures) - getScore(board, us.opponent(), theirCapturesInThisMove, theirCaptures);
-
-            undoTryMove(move);
-
-            return score;
+            return getScore(us) - getScore(us.opponent());
         }
 
-        private int getScore(Player[][] board, Player player, int capturesInThisMove, int capturesSoFar) {
-            /*
-            How close are we to a win by capture? I know the number of captures made by the move. I also if those captures
-            were made by us or the opponent. The more captures I make on this move, the closer I get to the goal
-            */
-            int capturesNeeded = Constants.WIN_CAPTURES_NEEDED - capturesSoFar;
-            int captureScore = 0;
-            if (capturesInThisMove >= capturesNeeded) {
-                captureScore = Integer.MAX_VALUE;
-            }
-            else if (capturesInThisMove > 0) {
-                captureScore = 10_000 * (capturesSoFar + capturesInThisMove);
-            }
+        private int getScore(Player player) {
             /* Get the number of possible captures*/
-            captureScore += 1_000 * countPossibleCaptures(board, player);
+            int captureScore = 10_000 * countPossibleCaptures(player);
 
             /* Get the number of possible open 4s */
-            int open4Score = 1_000 * countPossibleOpenKs(board, player, 4);
+            int open4Score = 1_000 * countPossibleOpenKs(player, 4);
 
             /* Get the number of possible open 3s */
-            int open3Score = 100 * countPossibleOpenKs(board, player, 3);
+            int open3Score = 100 * countPossibleOpenKs(player, 3);
 
             /* Get the number of open 2s */
-            int open2Score = 10 * countPossibleOpenKs(board, player, 2);
+            int open2Score = 10 * countPossibleOpenKs(player, 2);
 
             /* Get the number of player pieces on the board */
-            int piecesScore = countPieces(board, player);
+            int piecesScore = countPieces(player);
 
             return captureScore + open4Score + open3Score + open2Score + piecesScore;
         }
 
-        private int countPossibleCaptures(Player[][] board, Player player) {
+        private int countPossibleCaptures(Player player) {
             int count = 0;
             for (int i = 0; i < Constants.DIMS; i++) {
                 for (int j = 0; j < Constants.DIMS; j++) {
@@ -500,12 +518,12 @@ public class homework {
             return count;
         }
         
-        private int countPossibleOpenKs(Player[][] board, Player player, int K) {
+        private int countPossibleOpenKs(Player player, int K) {
             int count = 0;
             for (int i = 0; i < Constants.DIMS; i++) {
                 for (int j = 0; j < Constants.DIMS; j++) {
                     for (Direction direction : Direction.values()) {
-                        if (checkOpenK(board, player, K, i, j, direction)) {
+                        if (checkOpenK(player, K, i, j, direction)) {
                             count++;
                         }
                     }
@@ -518,7 +536,7 @@ public class homework {
          * Returns true if there's an open K starting from position i, j in the given direction. K intersections including
          * the current one must be occupied by the current player and there must be atleast 5 - K succeeding empty intersections
          */
-        private boolean checkOpenK(Player[][] board, Player player, int K, int i, int j, Direction direction) {
+        private boolean checkOpenK(Player player, int K, int i, int j, Direction direction) {
             int targetI = direction.moveI(i, K + 1);
             int targetJ = direction.moveJ(j, K + 1);
 
@@ -557,7 +575,7 @@ public class homework {
             return K == 0;
         }
 
-        private int countPieces(Player[][] board, Player player) {
+        private int countPieces(Player player) {
             int count = 0;
             for (int i = 0; i < Constants.DIMS; i++) {
                 for (int j = 0; j < Constants.DIMS; j++) {
@@ -839,7 +857,7 @@ public class homework {
         }
     }
 
-    public static class Move implements Comparable<Move> {
+    public static class Move {
 
         private static final String[] columns = {"A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T"};
 
@@ -851,8 +869,6 @@ public class homework {
 
         private final List<Direction> captureDirections;
 
-        private long score;
-        
         private boolean applied;
 
         public Move(Player player, int i, int j, List<Direction> captureDirections) {
@@ -867,7 +883,6 @@ public class homework {
             this.j = j;
             this.captureDirections = captureDirections;
             this.applied = false;
-            this.score = 0;
         }
 
         public Player getPlayer() {
@@ -898,27 +913,8 @@ public class homework {
             this.applied = false;
         }
 
-        public long getScore() {
-            return score;
-        }
-
-        public void setScore(long score) {
-            this.score = score;
-        }
-
         public String getString() {
-            return String.valueOf(Constants.DIMS - i) + columns[j];
-        }
-
-        @Override
-        public int compareTo(Move move) {
-            if (getScore() > move.getScore()) {
-                return -1;
-            }
-            else if (getScore() < move.getScore()) {
-                return 1;
-            }
-            return 0;
+            return (Constants.DIMS - i) + columns[j];
         }
     }
 
