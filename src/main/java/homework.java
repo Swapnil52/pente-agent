@@ -438,8 +438,16 @@ public class homework {
         }
 
         private int getScore(Player player) {
+            /* Get the number of current captures */
+            int captureScore = 0;
+            if (player == us) {
+                captureScore = 10_000 * ourCaptures;
+            }
+            else if (player == us.opponent()) {
+                captureScore = 10_000 * theirCaptures;
+            }
             /* Get the number of possible captures*/
-            int captureScore = 10_000 * countPossibleCaptures(player);
+            int possibleCaptureScore = 10_000 * countPossibleCaptures(player);
 
             /* Get the number of possible open 4s */
             int open4Score = 1_000 * countPossibleOpenKs(player, 4);
@@ -453,14 +461,14 @@ public class homework {
             /* Get the number of player pieces on the board */
             int piecesScore = countPieces(player);
 
-            return captureScore + open4Score + open3Score + open2Score + piecesScore;
+            return captureScore + possibleCaptureScore + open4Score + open3Score + open2Score + piecesScore;
         }
 
         private int countPossibleCaptures(Player player) {
             int count = 0;
             for (int i = 0; i < Constants.DIMS; i++) {
                 for (int j = 0; j < Constants.DIMS; j++) {
-                    if (board[i][j] == player) {
+                    if (board[i][j] == Player.NONE) {
                         for (Direction direction : Direction.values()) {
                             if (checkPossibleCapture(board, player, i, j, direction)) {
                                 count++;
@@ -852,7 +860,7 @@ public class homework {
 
         public static final int WIN_COINS_NEEDED = 5;
 
-        public static final int MINIMAX_MAX_DEPTH = 3;
+        public static final int MINIMAX_MAX_DEPTH = 2;
 
         public static final String[] columns = {"A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T"};
     }
