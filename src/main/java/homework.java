@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 public class homework {
 
     public static void main(String[] args) throws IOException {
-        long start = System.currentTimeMillis();
         FileHandler fileHandler = new FileHandler();
         Configuration configuration = fileHandler.loadConfiguration();
         MoveManager moveManager = new MoveManager(configuration);
@@ -24,7 +23,6 @@ public class homework {
         moveManager.commit(move);
         fileHandler.writeMove(move);
         fileHandler.updatePlayData(configuration);
-        System.out.printf("Time taken: %fs%n", (System.currentTimeMillis()-start)/1000F);
     }
 
     public static class FileHandler {
