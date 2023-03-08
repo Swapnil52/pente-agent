@@ -283,14 +283,14 @@ public class homework {
             if (configuration.getPlayer() == Player.WHITE) {
                 this.ourTurnNumber = configuration.getTurn();
                 this.theirTurnNumber = configuration.getTurn();
-                this.ourCaptures = configuration.getCapturesByWhite();
-                this.theirCaptures = configuration.getCapturesByBlack();
+                this.ourCaptures = configuration.getCapturesByWhite() / 2;
+                this.theirCaptures = configuration.getCapturesByBlack() / 2;
             }
             else if (configuration.getPlayer() == Player.BLACK) {
                 this.ourTurnNumber = configuration.getTurn();
                 this.theirTurnNumber = configuration.getTurn() + 1;
-                this.ourCaptures = configuration.getCapturesByBlack();
-                this.theirCaptures = configuration.getCapturesByBlack();
+                this.ourCaptures = configuration.getCapturesByBlack() / 2;
+                this.theirCaptures = configuration.getCapturesByWhite() / 2;
             }
         }
 
