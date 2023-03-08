@@ -183,7 +183,7 @@ public class homework {
                 moveManager.commit(move);
                 long score = minValue(move, 1, Integer.MIN_VALUE, Integer.MAX_VALUE);
                 moveManager.rollback(move);
-                if (score > bestScore) {
+                if (score >= bestScore) {
                     bestScore = score;
                     bestMove = move;
                 }
@@ -209,10 +209,6 @@ public class homework {
                 return moveManager.evaluate();
             }
 
-            /*
-            Generate the next moves by our opponent. Since this is the minValue call, it's better to evaluate the moves
-            and sort them in the increasing order of eval.
-            */
             List<Move> moves = moveManager.getNextMoves(us.opponent());
 
             /* Call maxValue on the above moves */
@@ -245,10 +241,6 @@ public class homework {
                 return moveManager.evaluate();
             }
 
-            /*
-            Generate our next moves. Since this is the maxValue call, it's better to evaluate the moves and sort them
-            in decreasing order of score.
-            */
             List<Move> moves = moveManager.getNextMoves(us);
 
             /* Try out the moves one by one */
