@@ -21,7 +21,12 @@ public class homework {
         MoveManager moveManager = new MoveManager(configuration);
         PenteAgent agent = new PenteAgent(moveManager, configuration.getPlayer());
         Move move = agent.getBestMove();
+        moveManager.commit(move);
         fileHandler.writeMove(move);
+        fileHandler.updatePlayData(configuration);
+
+        fileHandler.writeBoard(moveManager.getBoard());
+
         System.out.printf("Time taken: %fs%n", (System.currentTimeMillis()-start)/1000F);
     }
 
