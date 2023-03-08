@@ -477,7 +477,7 @@ public class homework {
             }
             return count;
         }
-        
+
         private int countPossibleOpenKs(Player player, int K) {
             int count = 0;
             for (int i = 0; i < Constants.DIMS; i++) {
@@ -815,7 +815,7 @@ public class homework {
         public void commit() {
             this.applied = true;
         }
-        
+
         public void revoke() {
             this.applied = false;
         }
