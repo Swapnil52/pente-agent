@@ -24,9 +24,6 @@ public class homework {
         moveManager.commit(move);
         fileHandler.writeMove(move);
         fileHandler.updatePlayData(configuration);
-
-        fileHandler.writeBoard(moveManager.getBoard());
-
         System.out.printf("Time taken: %fs%n", (System.currentTimeMillis()-start)/1000F);
     }
 
