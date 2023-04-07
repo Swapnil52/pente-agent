@@ -346,7 +346,9 @@ public class homework {
         private List<Move> getMovesOnALine(Player player, int i, int j, int N, Direction direction) {
             List<Move> moves = new ArrayList<>();
             while (N > 0 && !outOfBounds(i, j)) {
-                moves.add(initMove(player, i, j));
+                if (board[i][j] == Player.NONE) {
+                    moves.add(initMove(player, i, j));
+                }
                 i = direction.moveI(i, 1);
                 j = direction.moveJ(j, 1);
                 N--;
